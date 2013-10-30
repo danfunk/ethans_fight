@@ -1,0 +1,22 @@
+<html>
+  <body>
+    <div class="title"><img src="user_icons/@{post.from.id}_lg.jpg"/>@post.from.name</div>
+    <div class="date">@date.strftime("%Y-%m-%d %I:%M")</div>
+    <div class="message">@post.message</div>
+    
+    #if (@has_pic) :
+    <img src="pictures/@{post.id}.jpg"/>
+    #end
+
+    #if (@post.type == "link") :
+     <a href="@{post.link}">Original Post</a>
+    #end
+    
+    <div class="comments">
+      #for @com in @post.comments.data:
+         <li><img src="user_icons/@{com.from.id}.jpg" Title="@com.from.name">@com.message</li>
+      #end
+    </div>
+
+  </body>
+</html>
