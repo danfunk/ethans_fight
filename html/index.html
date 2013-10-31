@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ethan's Fight</title>
+  <meta name="keywords"    content="Postcards/Letters to Ethan to fight acute myeloid leukemia " />
+  <meta name="description" content="Postcards/Letters to Ethan to fight acute myeloid leukemia " />
+  <link href="css/main.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+  <section class="container">
+    #for @post in @posts:
+      <article class="span4">
+        <h3><img src="user_icons/@{post.from.id}.jpg"/>@post.from.name</h3>
+	<div class="date">@post.date.strftime("%Y-%m-%d %I:%M")</div>        
+	#if (@post.message)
+  	  <p>@post.message
+	    #if (@post.type == "link") 
+   	      <a href="@{post.link}">Visit Link</a>
+            #end
+	  </p>
+        #end
+	#if (@post.object_id) 
+	  <a href="photos/@{post.object_id}.html"/><img class="image_link" src="pictures/@{post.id}.jpg"/></a>
+	#elseif (@post.picture) 
+	  <img src="pictures/@{post.id}.jpg"/>
+	#end	
+        <div class="comments">
+        #for @com in @post.comments.data:
+           <div class="comment"><img src="user_icons/@{com.from.id}.jpg" Title="@com.from.name">@com.message</div>
+        #end
+        </div>
+      </article>
+    #end
+    <hr class="featurette-divider">
+    #if (@more_pages)
+        <a href="index@{pg_count}.html">Next</a>
+    #end
+  </section>
+</body>
+</html>

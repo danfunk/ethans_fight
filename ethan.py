@@ -3,13 +3,25 @@ import os
 import shutil
 import requests
 import simplejson
+import yaml
 from datetime import datetime
 from dateutil import parser
 from quik import FileLoader
 
-oauth_access_token="yourtoken"
-
-group_id = "yourgroup"
+# Read in configuration
+try:
+    stram = open("config.yml")
+    config = yaml.load(stram)
+    print("Configuration:")
+    print("====================")
+    print("Group ID:" + config["group_id"])
+    print("OAuth Token:" + config["oauth_access_token"])
+    
+    group_id = config["group_id"]
+    oauth_access_token = config["oauth_access_token"]
+except (IOError, TypeError, KeyError, yaml.parser.ParserError):
+    print "There is a problem with the configuration file. Please see the readme for how to create this file."
+    quit()
 
 # Set up directories.
 icon_dir = os.path.join("content", "user_icons")
@@ -25,13 +37,12 @@ if not os.path.exists(photo_dir):
 if not os.path.exists(css_dir):
     os.makedirs(css_dir)
 
-# Cover over css files.
+# Copy over css files.
 src_files = os.listdir("css")
 for file_name in src_files:
     full_file_name = os.path.join("css", file_name)
     if (os.path.isfile(full_file_name)):
         shutil.copy(full_file_name, css_dir)
-
 
 # Downloads a users profile picture in small and medium sizes.    
 def download_fb_image(fb_id):    
@@ -61,74 +72,88 @@ def download_picture(path, id):
 # Creates a page for a large picture, including comments on that picture.
 def create_photo_page(picture_id):
 
-    post = graph.get_object(picture_id)
-
-    loader   = FileLoader('html')
-    template = loader.load_template('photo.html')
-    date     = parser.parse(post["created_time"])
+   try:
+       post = graph.get_object(picture_id)
+   
+       loader   = FileLoader('html')
+       template = loader.load_template('photo.html')
+       date     = parser.parse(post["created_time"])
     
-    download_picture(post["source"], picture_id)
-    photo_url = os.path.join("..", "pictures", picture_id + ".jpg")
+       download_picture(post["source"], picture_id)
+       photo_url = os.path.join("..", "pictures", picture_id + ".jpg")
 
-    file_name = os.path.join("content", "photos", post["id"] + ".html")
-    with open(file_name, 'wb') as f:
-        f.write(template.render({'post': post, 'date' : date, 'photo' : photo_url},
-                              loader=loader).encode('utf-8'))
+       file_name = os.path.join("content", "photos", post["id"] + ".html")
+       with open(file_name, 'wb') as f:
+           f.write(template.render({'post': post, 'date' : date, 'photo' : photo_url},
+                                   loader=loader).encode('utf-8'))
+   except facebook.GraphAPIError:
+       print "Oops!  failed to get this object:" + str(picture_id)
 
-# Creates a page for a posting, along with all the comments.
-def create_post_page(post):
-    loader   = FileLoader('html')
-    template = loader.load_template('post.html')
-    date     = parser.parse(post["created_time"])
-
-    has_pic   = False
-    has_photo = False
-
-    if(post.has_key("picture")) :
-        download_picture(post["picture"], post["id"])
-        has_pic   = True
-        
-    if(post.has_key("object_id")) :
-        create_photo_page(post["object_id"])
-        has_photo = True
-
-    file_name = os.path.join("content", post["id"] + ".html")
-    with open(file_name, 'wb') as f:
-        f.write(template.render({'post': post, 'date' : date, 'has_pic': has_pic, 'has_photo': has_photo},
-                                loader=loader).encode('utf-8'))
-        
-    # Download all the images.
-    if post.has_key("comments") :
-        for com in post["comments"]["data"]:
-            download_fb_image(com["from"]["id"])                                
 
 # Create an index page.
-def index_page(posts, pg_count):
+def index_page(posts, pg_count, more_pages):
     index_name = os.path.join("content", "index" + str(pg_count) + ".html")
+    
+    if(pg_count == 0):        
+        index_name = os.path.join("content", "index" + ".html")
+
     with open(index_name, 'wb') as f:
         loader   = FileLoader('html')
         template = loader.load_template('index.html')
-        f.write(template.render({'posts': posts},
+        f.write(template.render({'posts': posts, 'pg_count' : pg_count + 1, 'more_pages' : more_pages},
                                 loader=loader).encode('utf-8'))
 
-def post_pages(posts):
-    # Here is the main loop of the code, which calles the other methods and builds out all the pages.
-    for post in iter(posts):
-        create_post_page(post)
 
+# Run through the posts individually and grab all the images
+def post_pages(posts):
+    for post in iter(posts):
+        if(post.has_key("object_id")) :
+            create_photo_page(post["object_id"])
+
+        if(post.has_key("picture")) :
+            download_picture(post["picture"], post["id"])
+
+        # Download all the images.
+        if post.has_key("comments") :
+            for com in post["comments"]["data"]:
+                download_fb_image(com["from"]["id"])                                        
+        
+# RECURSIVE - work through the feed, page by page, creating
+# an index page for each.
 def process_feed(feed, pg_count):
     print("processing page #" + str(pg_count) )
-    index_page(feed["data"], pg_count)
     post_pages(feed["data"])    
-    if(feed.has_key("paging") & feed["paging"].has_key("next")):
+
+    for post in iter(feed["data"]):
+        post["date"] = parser.parse(post["created_time"])
+
+    more_pages=False
+    if(feed.has_key("paging") and feed["paging"].has_key("next")):
+        more_pages=True
+
+    index_page(feed["data"], pg_count, more_pages)
+
+    if(more_pages):
         req    = requests.get(feed["paging"]["next"])
         process_feed(req.json(), pg_count + 1)
 
 
-graph = facebook.GraphAPI(oauth_access_token)
-profile = graph.get_object(group_id)
-feed = graph.get_connections(group_id, "feed")
+# Here is where we kick it all off by grabbing the first page
+# of the newsfeed for the group.
+try:
+    graph = facebook.GraphAPI(oauth_access_token)
+    profile = graph.get_object(group_id)
+    feed = graph.get_connections(group_id, "feed")
 
-process_feed(feed, 0)
+
+    if(len(feed) == 0):
+        print("\n\nERROR: No feed found for the group id '" + group_id + "' in your config.\n")
+        quit()
+        
+    process_feed(feed, 0)
+
+
+except facebook.GraphAPIError as e:
+    print "\n\nFacebook Graph API error({0}): {1}".format(e.type, e.message + "\n")
 
 

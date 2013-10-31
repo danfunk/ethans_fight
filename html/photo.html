@@ -1,26 +1,34 @@
+<!doctype html>
 <html>
-  <body>
-    <div class="title"><img src="../user_icons/@{post.from.id}_lg.jpg"/>@post.from.name</div>
-    <div class="date">@date.strftime("%Y-%m-%d %I:%M")</div>
-    <div class="message">@post.message</div>
-    
-    #if (@has_pic) :
-    <img src="../pictures/@{post.id}.jpg"/>
-    #end
-
-    #if (@photo_url) :
-    <img src="@photo"/>
-    #end
-
-    #if (@post.type == "link") :
-     <a href="@{post.link}">Original Post</a>
-    #end
-    
-    <div class="comments">
-      #for @com in @post.comments.data:
-         <li><img src="user_icons/@{com.from.id}.jpg" Title="@com.from.name">@com.message</li>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>@{post.name}</title>
+  <link href="../css/main.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+  <section class="container">
+    <article class="span4">
+      <h3><img src="../user_icons/@{post.from.id}.jpg"/>@post.name</h3>
+      <div class="date">@date.strftime("%Y-%m-%d %I:%M")</div>        
+      <br clear="all"/>
+      #if (@post.message)
+      <p>@post.message
+	#if (@post.type == "link") 
+   	<a href="@{post.link}">Visit Link</a>
+        #end
+      </p>
       #end
-    </div>
-
-  </body>
+      #if (@photo)
+      <img class="photo" src="@photo"/>
+      #end
+      <div class="comments">
+        #for @com in @post.comments.data:
+        <div class="comment"><img src="../user_icons/@{com.from.id}.jpg" Title="@com.from.name">@com.message</div>
+        #end
+      </div>
+    </article>
+  </section>
+</body>
 </html>
+
