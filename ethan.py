@@ -111,22 +111,21 @@ def index_page(posts, pg_count, more_pages):
                                 loader=loader).encode('utf-8'))
 
 
-# RECURSIVE - work through the comments, recalling this method
-# for subsequent pages of comments.  Download images, and return
-# all comments as a single list.
-def process_comments(comments):
-    # print ("The comments is: " + str(comments))
+# Returns all comments for a given post.  If the comments are paginated
+# just make a seperate call and download them all.
+def process_comments(post):
     data = []
-    for com in comments["data"]:
-        download_fb_image(com["from"]["id"])                                                
-        data.append(com)
 
-    if(comments.has_key("paging") and comments["paging"].has_key("next")):
-        print("THERE ARE MORE COMMENTS ON THIS ONE!!!!")
-        req    = requests.get(comments["paging"]["next"])
-        data.extend(process_comments(req.json()))
-        
-    return data
+    comments = post["comments"]["data"]
+    if(post["comments"].has_key("paging") and post["comments"]["paging"].has_key("next")):
+        comments = graph.request(post["id"] + "/" + "comments", {"limit":"500"})["data"]
+
+    print ("Comments: " + str(comments))
+
+    for com in comments:
+        download_fb_image(com["from"]["id"])                                                
+ 
+    return comments
 
 # Run through the posts individually and grab all the images
 def prepare_post(post):
@@ -144,7 +143,7 @@ def prepare_post(post):
 
     # Download all the images in the comments.
     if post.has_key("comments") :
-        post["all_comments"] = process_comments(post["comments"])
+        post["all_comments"] = process_comments(post)
          
 # RECURSIVE - work through the feed, page by page, creating
 # an index page for each.
@@ -162,10 +161,9 @@ def process_feed(feed, pg_count):
 
     index_page(feed["data"], pg_count, more_pages)
 
-    # Stop here while we test...
-    # if(more_pages):
-    #    req    = requests.get(feed["paging"]["next"])
-    #    process_feed(req.json(), pg_count + 1)
+    if(more_pages):
+        req    = requests.get(feed["paging"]["next"])
+        process_feed(req.json(), pg_count + 1)
 
 
 # Here is where we kick it all off by grabbing the first page
