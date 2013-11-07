@@ -19,8 +19,9 @@ try:
     
     group_id = config["group_id"]
     oauth_access_token = config["oauth_access_token"]
-except (IOError, TypeError, KeyError, yaml.parser.ParserError):
+except  (IOError, TypeError, KeyError, yaml.parser.ParserError)as e:
     print "There is a problem with the configuration file. Please see the readme for how to create this file."
+    print "\n\nConfiguration error: {0}".format(e.message + "\n")
     quit()
 
 # Set up directories.
@@ -86,6 +87,12 @@ def create_photo_page(picture_id):
        with open(file_name, 'wb') as f:
            f.write(template.render({'post': post, 'date' : date, 'photo' : photo_url},
                                    loader=loader).encode('utf-8'))
+
+       # Download all the images for the comments.
+       if post.has_key("comments") :
+           for com in post["comments"]["data"]:
+               download_fb_image(com["from"]["id"])                                        
+
    except facebook.GraphAPIError:
        print "Oops!  failed to get this object:" + str(picture_id)
 
@@ -104,28 +111,50 @@ def index_page(posts, pg_count, more_pages):
                                 loader=loader).encode('utf-8'))
 
 
-# Run through the posts individually and grab all the images
-def post_pages(posts):
-    for post in iter(posts):
-        if(post.has_key("object_id")) :
-            create_photo_page(post["object_id"])
+# RECURSIVE - work through the comments, recalling this method
+# for subsequent pages of comments.  Download images, and return
+# all comments as a single list.
+def process_comments(comments):
+    # print ("The comments is: " + str(comments))
+    data = []
+    for com in comments["data"]:
+        download_fb_image(com["from"]["id"])                                                
+        data.append(com)
 
-        if(post.has_key("picture")) :
-            download_picture(post["picture"], post["id"])
-
-        # Download all the images.
-        if post.has_key("comments") :
-            for com in post["comments"]["data"]:
-                download_fb_image(com["from"]["id"])                                        
+    if(comments.has_key("paging") and comments["paging"].has_key("next")):
+        print("THERE ARE MORE COMMENTS ON THIS ONE!!!!")
+        req    = requests.get(comments["paging"]["next"])
+        data.extend(process_comments(req.json()))
         
+    return data
+
+# Run through the posts individually and grab all the images
+def prepare_post(post):
+
+    # Turn the created time into a real date object.
+    post["date"] = parser.parse(post["created_time"])
+
+    # Create a phot page if a photo exists.
+    if(post.has_key("object_id")) :
+        create_photo_page(post["object_id"])
+
+    # download any assoicated pictures.
+    if(post.has_key("picture")) :
+        download_picture(post["picture"], post["id"])
+
+    # Download all the images in the comments.
+    if post.has_key("comments") :
+        post["all_comments"] = process_comments(post["comments"])
+         
 # RECURSIVE - work through the feed, page by page, creating
 # an index page for each.
 def process_feed(feed, pg_count):
     print("processing page #" + str(pg_count) )
-    post_pages(feed["data"])    
 
+    # create a parsed out time for each post
+    # and make sure you have /all/ the comments (not just the first page.)
     for post in iter(feed["data"]):
-        post["date"] = parser.parse(post["created_time"])
+        prepare_post(post)   
 
     more_pages=False
     if(feed.has_key("paging") and feed["paging"].has_key("next")):
@@ -133,9 +162,10 @@ def process_feed(feed, pg_count):
 
     index_page(feed["data"], pg_count, more_pages)
 
-    if(more_pages):
-        req    = requests.get(feed["paging"]["next"])
-        process_feed(req.json(), pg_count + 1)
+    # Stop here while we test...
+    # if(more_pages):
+    #    req    = requests.get(feed["paging"]["next"])
+    #    process_feed(req.json(), pg_count + 1)
 
 
 # Here is where we kick it all off by grabbing the first page
