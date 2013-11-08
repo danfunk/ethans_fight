@@ -69,6 +69,19 @@ def download_picture(path, id):
                for chunk in r.iter_content():
                    f.write(chunk)
 
+# Returns all comments for a given post.  If the comments are paginated
+# just make a seperate call and download them all.
+def process_comments(post):
+    data = []
+
+    comments = post["comments"]["data"]
+    if(post["comments"].has_key("paging") and post["comments"]["paging"].has_key("next")):
+        comments = graph.request(post["id"] + "/" + "comments", {"limit":"500"})["data"]
+
+    for com in comments:
+        download_fb_image(com["from"]["id"])                                                
+ 
+    return comments
 
 # Creates a page for a large picture, including comments on that picture.
 def create_photo_page(picture_id):
@@ -84,14 +97,14 @@ def create_photo_page(picture_id):
        photo_url = os.path.join("..", "pictures", picture_id + ".jpg")
 
        file_name = os.path.join("content", "photos", post["id"] + ".html")
-       with open(file_name, 'wb') as f:
-           f.write(template.render({'post': post, 'date' : date, 'photo' : photo_url},
-                                   loader=loader).encode('utf-8'))
 
        # Download all the images for the comments.
        if post.has_key("comments") :
-           for com in post["comments"]["data"]:
-               download_fb_image(com["from"]["id"])                                        
+           post["all_comments"] = process_comments(post)
+
+       with open(file_name, 'wb') as f:
+           f.write(template.render({'post': post, 'date' : date, 'photo' : photo_url},
+                                   loader=loader).encode('utf-8'))
 
    except facebook.GraphAPIError:
        print "Oops!  failed to get this object:" + str(picture_id)
@@ -109,23 +122,6 @@ def index_page(posts, pg_count, more_pages):
         template = loader.load_template('index.html')
         f.write(template.render({'posts': posts, 'pg_count' : pg_count + 1, 'more_pages' : more_pages},
                                 loader=loader).encode('utf-8'))
-
-
-# Returns all comments for a given post.  If the comments are paginated
-# just make a seperate call and download them all.
-def process_comments(post):
-    data = []
-
-    comments = post["comments"]["data"]
-    if(post["comments"].has_key("paging") and post["comments"]["paging"].has_key("next")):
-        comments = graph.request(post["id"] + "/" + "comments", {"limit":"500"})["data"]
-
-    print ("Comments: " + str(comments))
-
-    for com in comments:
-        download_fb_image(com["from"]["id"])                                                
- 
-    return comments
 
 # Run through the posts individually and grab all the images
 def prepare_post(post):

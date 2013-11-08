@@ -37,7 +37,8 @@ div.comment img {
 
 img.image_link {
     border: 1px solid blue;
-    margin: 0 0 0 60px;  
+    margin: 0 20px 0 60px;  
+    float: left;
  }
 
 img.photo {

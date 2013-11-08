@@ -23,7 +23,7 @@
       <img class="photo" src="@photo"/>
       #end
       <div class="comments">
-        #for @com in @post.comments.data:
+        #for @com in @post.all_comments:
         <div class="comment"><img src="../user_icons/@{com.from.id}.jpg" Title="@com.from.name">@com.message</div>
         #end
       </div>
