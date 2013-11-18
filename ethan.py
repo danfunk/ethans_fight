@@ -7,6 +7,7 @@ import yaml
 from datetime import datetime
 from dateutil import parser
 from quik import FileLoader
+import youtube_dl
 
 # Read in configuration
 try:
@@ -69,6 +70,17 @@ def download_picture(path, id):
                for chunk in r.iter_content():
                    f.write(chunk)
 
+
+#   r         = requests.get(path, stream=True)
+#   file_name = os.path.join("content", "videos", id + ".mp4")
+
+#   if not os.path.exists(file_name):
+#       if r.status_code == 200:
+#           with open(file_name, 'wb') as f:
+#               for chunk in r.iter_content():
+#                   f.write(chunk)
+
+
 # Returns all comments for a given post.  If the comments are paginated
 # just make a seperate call and download them all.
 def process_comments(post):
@@ -108,7 +120,46 @@ def create_photo_page(picture_id):
 
    except facebook.GraphAPIError:
        print "Oops!  failed to get this object:" + str(picture_id)
+   except KeyError:
+       print "Oops! Failed to find information for this image:" + str(picture_id)
 
+
+# Creates a page for a large picture, including comments on that picture.
+ydl = youtube_dl.YoutubeDL({'outtmpl': '%(id)s%(ext)s'})
+ydl.add_default_info_extractors()
+def create_video_page(post):
+
+   try:   
+       loader   = FileLoader('html')
+       template = loader.load_template('video.html')
+       date     = parser.parse(post["created_time"])
+       video_id = post["id"]
+    
+       # Download the video
+       result = ydl.extract_info(post["source"], download=False)       
+       if 'entries' in result:
+           # Can be a playlist or a list of videos
+           video = result['entries'][0]
+       else:
+           # Just a video
+           video = result
+      
+       print video
+       video_url = os.path.join("content", "videos", video_id + "." + video["ext"])
+       if not os.path.exists(video_url):
+         tempfile = video["id"] + video["ext"]
+         print "rename " + tempfile + " to " + video_url
+         result = ydl.extract_info(post["source"], download=True)       
+         os.rename(tempfile, video_url)
+
+
+       file_name = os.path.join("content", "videos", post["id"] + ".html")
+       with open(file_name, 'wb') as f:
+           f.write(template.render({'post': post, 'date' : date, 'url' : video_id + "." + video["ext"], 'video' : video},
+                                   loader=loader).encode('utf-8'))
+
+   except facebook.GraphAPIError:
+       print "Oops!  failed to get this object:" + str(video_id)
 
 # Create an index page.
 def index_page(posts, pg_count, more_pages):
@@ -130,9 +181,14 @@ def prepare_post(post):
     post["date"] = parser.parse(post["created_time"])
 
     # Create a phot page if a photo exists.
-    if(post.has_key("object_id")) :
+    if(post["type"] == "photo") :
         create_photo_page(post["object_id"])
 
+    # Create a video page if a video exists.
+    if(post["type"] == "video") :
+        print post["id"]
+        create_video_page(post)       
+        
     # download any assoicated pictures.
     if(post.has_key("picture")) :
         download_picture(post["picture"], post["id"])

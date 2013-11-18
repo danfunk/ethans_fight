@@ -16,7 +16,7 @@
 	<div class="date">@post.date.strftime("%Y-%m-%d %I:%M")</div>        
 	<div class="info">@post.id | @post.type </div>
 
-	#if (@post.object_id) 
+	#if (@post.type == "picture") 
 	  <a href="photos/@{post.object_id}.html"/><img class="image_link" src="pictures/@{post.id}.jpg"/></a>
           <div class="info">@post.name</div>          
   	#elseif (@post.picture) 

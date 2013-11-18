@@ -4,3 +4,4 @@ quik==0.2.2
 requests==2.0.1
 pyyaml==3.10
 python-dateutil==1.5
+youtube-dl==2013.11.17
