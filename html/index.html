@@ -13,14 +13,16 @@
     #for @post in @posts:
       <article class="span4">
         <h3><img src="user_icons/@{post.from.id}.jpg"/>@post.from.name</h3>
-	<div class="date">@post.date.strftime("%Y-%m-%d %I:%M")</div>        
+	<div class="date">@post.date.strftime("%B %d, %Y")</div>        
 	<div class="info">@post.id | @post.type </div>
-
-	#if (@post.type == "picture") 
+	#if (@post.type == "photo") 
 	  <a href="photos/@{post.object_id}.html"/><img class="image_link" src="pictures/@{post.id}.jpg"/></a>
           <div class="info">@post.name</div>          
+	#elseif (@post.type == "video") 
+	  <a href="videos/@post.video"/><img class="image_link" src="pictures/@{post.id}.jpg"/></a>
+          <div class="info">@post.name</div>          
   	#elseif (@post.picture) 
-	  <img class="image_link" src="pictures/@{post.id}.jpg"/>
+	  <img src="pictures/@{post.id}.jpg"/>
           <div class="info">@post.name</div>          
 	#end	
 
@@ -43,7 +45,7 @@
 	<br clear="both"/>
         <div class="comments">
         #for @com in @post.all_comments:
-           <div class="comment"><img src="user_icons/@{com.from.id}.jpg" Title="@com.from.name">@com.message</div>
+           <div class="comment"><img src="user_icons/@{com.from.id}.jpg" Title="@com.from.name"><b>@com.from.name</b> &mbsp: @com.message</div>
         #end
         </div>
       </article>

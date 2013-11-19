@@ -30,6 +30,7 @@ icon_dir = os.path.join("content", "user_icons")
 picture_dir = os.path.join("content", "pictures")
 photo_dir = os.path.join("content", "photos")
 css_dir = os.path.join("content", "css")
+vid_dir = os.path.join("content", "css")
 if not os.path.exists(icon_dir):
     os.makedirs(icon_dir)
 if not os.path.exists(picture_dir):
@@ -38,6 +39,8 @@ if not os.path.exists(photo_dir):
     os.makedirs(photo_dir)
 if not os.path.exists(css_dir):
     os.makedirs(css_dir)
+if not os.path.exists(vid_dir):
+    os.makedirs(vid_dir)
 
 # Copy over css files.
 src_files = os.listdir("css")
@@ -50,27 +53,29 @@ for file_name in src_files:
 def download_fb_image(fb_id):    
     file_name_sm = os.path.join("content", "user_icons", fb_id + ".jpg")
     file_name_lg = os.path.join("content", "user_icons", fb_id + "_lg.jpg")
-    if not os.path.exists(file_name_sm):
-        user = graph.get_connections(fb_id, "picture")
-        with open(file_name_sm, 'wb') as f:
-            f.write(user["data"])
-    if not os.path.exists(file_name_lg):
-        user = graph.request(fb_id + "/" + "picture", {"type" : "normal"})
-        with open(file_name_lg, 'wb') as f:
-            f.write(user["data"])
+    try:
+        if not os.path.exists(file_name_sm):
+            user = graph.get_connections(fb_id, "picture")
+            with open(file_name_sm, 'wb') as f:
+                f.write(user["data"])
+        if not os.path.exists(file_name_lg):
+            user = graph.request(fb_id + "/" + "picture", {"type" : "normal"})
+            with open(file_name_lg, 'wb') as f:
+                f.write(user["data"])
+    except simplejson.scanner.JSONDecodeError:
+        print "Oops! Problem parsing JSON, this occurs when trying to download a facebook profile picture."
 
 # Downloads a photo given a url.
-def download_picture(path, id):
-   r         = requests.get(path + "?type=large", stream=True)
-   file_name = os.path.join("content", "pictures", id + ".jpg")
-
-   if not os.path.exists(file_name):
-       if r.status_code == 200:
-           with open(file_name, 'wb') as f:
-               for chunk in r.iter_content():
-                   f.write(chunk)
-
-
+def download_picture(path, id):   
+    file_name = os.path.join("content", "pictures", id + ".jpg")
+    if not os.path.exists(file_name):
+        r  = requests.get(path + "?type=large", stream=True)
+        if r.status_code == 200:
+            with open(file_name, 'wb') as f:
+                for chunk in r.iter_content():
+                    f.write(chunk)
+                    
+                    
 #   r         = requests.get(path, stream=True)
 #   file_name = os.path.join("content", "videos", id + ".mp4")
 
@@ -124,19 +129,28 @@ def create_photo_page(picture_id):
        print "Oops! Failed to find information for this image:" + str(picture_id)
 
 
+
 # Creates a page for a large picture, including comments on that picture.
 ydl = youtube_dl.YoutubeDL({'outtmpl': '%(id)s%(ext)s'})
 ydl.add_default_info_extractors()
-def create_video_page(post):
+def download_video(post):
 
    try:   
        loader   = FileLoader('html')
        template = loader.load_template('video.html')
        date     = parser.parse(post["created_time"])
        video_id = post["id"]
-    
+
+       src = ""
+       if(post.has_key("object_id")):
+           src = "https://www.facebook.com/photo.php?v=" + post["object_id"]
+       elif(post.has_key("source")):
+           src = post["source"] 
+       else:
+           src = post["link"] 
+          
        # Download the video
-       result = ydl.extract_info(post["source"], download=False)       
+       result = ydl.extract_info(src, download=False)       
        if 'entries' in result:
            # Can be a playlist or a list of videos
            video = result['entries'][0]
@@ -145,21 +159,21 @@ def create_video_page(post):
            video = result
       
        print video
-       video_url = os.path.join("content", "videos", video_id + "." + video["ext"])
+       video_name =  video_id + "." + video["ext"]
+       video_url  = os.path.join("content", "videos", video_id + "." + video["ext"])
        if not os.path.exists(video_url):
          tempfile = video["id"] + video["ext"]
          print "rename " + tempfile + " to " + video_url
-         result = ydl.extract_info(post["source"], download=True)       
+         result = ydl.extract_info(src, download=True)       
          os.rename(tempfile, video_url)
 
-
-       file_name = os.path.join("content", "videos", post["id"] + ".html")
-       with open(file_name, 'wb') as f:
-           f.write(template.render({'post': post, 'date' : date, 'url' : video_id + "." + video["ext"], 'video' : video},
-                                   loader=loader).encode('utf-8'))
-
+       return video_name
    except facebook.GraphAPIError:
-       print "Oops!  failed to get this object:" + str(video_id)
+       print "Download failed for :" + str(video_id)
+   except youtube_dl.utils.DownloadError:
+       print "Download failed for :" + str(video_id)
+   except KeyError:
+       print "Complex output for data on this video :" + str(video_id)
 
 # Create an index page.
 def index_page(posts, pg_count, more_pages):
@@ -186,8 +200,7 @@ def prepare_post(post):
 
     # Create a video page if a video exists.
     if(post["type"] == "video") :
-        print post["id"]
-        create_video_page(post)       
+        post["video"] = download_video(post)       
         
     # download any assoicated pictures.
     if(post.has_key("picture")) :

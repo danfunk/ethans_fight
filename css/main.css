@@ -8,14 +8,22 @@ h3 img {
 
 h3 {
     line-height: 20px;
+    margin: 2px;
 }
 
 h3 img {
     padding: 0px 8px 0 0;
 }
 
+article {
+    margin: 20px 0 0 0;
+    padding: 10px 0 0 0;
+    border-top: 1px solid #DDD;
+}
+
 article p {
     padding: 2px 0px 0px 60px;
+    line-height: 1.3em;
 }
  
 div.comments {
@@ -147,4 +155,10 @@ td:not(:first-child) {
 }
 
 
+.info {
+    visibility: hidden
+}
 
+.date {
+    color: #ccc
+}
