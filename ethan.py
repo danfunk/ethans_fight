@@ -31,7 +31,7 @@ icon_dir = os.path.join("content", "user_icons")
 picture_dir = os.path.join("content", "pictures")
 photo_dir = os.path.join("content", "photos")
 css_dir = os.path.join("content", "css")
-vid_dir = os.path.join("content", "css")
+vid_dir = os.path.join("content", "videos")
 if not os.path.exists(icon_dir):
     os.makedirs(icon_dir)
 if not os.path.exists(picture_dir):
