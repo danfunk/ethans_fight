@@ -8,6 +8,7 @@ from datetime import datetime
 from dateutil import parser
 from quik import FileLoader
 import youtube_dl
+import cgi
 
 # Read in configuration
 try:
@@ -96,7 +97,8 @@ def process_comments(post):
         comments = graph.request(post["id"] + "/" + "comments", {"limit":"500"})["data"]
 
     for com in comments:
-        download_fb_image(com["from"]["id"])                                                
+        download_fb_image(com["from"]["id"])
+        com["message"] = cgi.escape(com["message"]).replace('\n','<br />')
  
     return comments
 
@@ -193,6 +195,8 @@ def prepare_post(post):
 
     # Turn the created time into a real date object.
     post["date"] = parser.parse(post["created_time"])
+
+    post["message"] = cgi.escape(post["message"]).replace('\n','<br />')
 
     # Create a phot page if a photo exists.
     if(post["type"] == "photo") :
