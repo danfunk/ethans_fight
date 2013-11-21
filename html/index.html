@@ -10,50 +10,23 @@
 </head>
 <body>
   <section class="container">
-    #for @post in @posts:
-      <article class="span4">
-        <h3><img src="user_icons/@{post.from.id}.jpg"/>@post.from.name</h3>
-	<div class="date">@post.date.strftime("%B %d, %Y")</div>        
-	<div class="info">@post.id | @post.type </div>
-	#if (@post.type == "photo") 
-	  <a href="photos/@{post.object_id}.html"/><img class="image_link" src="pictures/@{post.id}.jpg"/></a>
-          <div class="info">@post.name</div>          
-	#elseif (@post.type == "video") 
-	  <a href="videos/@post.video"/><img class="image_link" src="pictures/@{post.id}.jpg"/></a>
-          <div class="info">@post.name</div>          
-  	#elseif (@post.picture) 
-	  <img src="pictures/@{post.id}.jpg"/>
-          <div class="info">@post.name</div>          
-	#end	
 
-	#for @prop in @post.properties:
-          <div class="info">@prop.name: @prop.text</div>          
-	#end
-
-	#if (@post.type == "link") 
-   	  <a href="@{post.link}">Visit Link</a>
-        #end
-
-	#if (@post.message)
-  	  <p>@post.message</p>
-        #end
-
-	#if (@post.description)
-  	  <p>@post.description</p>
-        #end
-	
-	<br clear="both"/>
-        <div class="comments">
-        #for @com in @post.all_comments:
-           <div class="comment"><img src="user_icons/@{com.from.id}.jpg" Title="@com.from.name"><b>@com.from.name</b>&nbsp: @com.message</div>
-        #end
-        </div>
-      </article>
+    <h2>Videos</h2>
+    #for @v in @videos:
+    <a href="videos/@{v.file}"><img class="vid_image" src="@{v.image}"/></a>    
     #end
-    <hr class="featurette-divider">
-    #if (@more_pages)
-        <a href="index@{pg_count}.html">Next</a>
+
+    <h2>Posts</h2>
+    #for @p in @posts:
+    <a href="posts/@{p.file}">@p.page</a> &nbsp;
+    #end    
+
+    <h2>Images</h2>
+    #for @p in @pictures:
+    <a href="pictures/@{p}"><img class="vid_image" src="pictures/@{p}"/></a>    
     #end
+
+
   </section>
 </body>
 </html>

@@ -47,6 +47,7 @@ img.image_link {
     border: 1px solid blue;
     margin: 0 20px 0 60px;  
     float: left;
+    max-width: 200px;
  }
 
 img.photo {
@@ -161,4 +162,8 @@ td:not(:first-child) {
 
 .date {
     color: #ccc
+}
+
+.vid_image {
+    max-width: 100px;
 }

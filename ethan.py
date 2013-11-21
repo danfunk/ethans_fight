@@ -10,6 +10,10 @@ from quik import FileLoader
 import youtube_dl
 import cgi
 
+# This downloads all the content and build pages for all the posts.  
+# A second file called "indexer.py" will generate an index page that
+# provides an overview and navigation of the content.
+
 # Read in configuration
 try:
     stram = open("config.yml")
@@ -26,22 +30,24 @@ except  (IOError, TypeError, KeyError, yaml.parser.ParserError)as e:
     print "\n\nConfiguration error: {0}".format(e.message + "\n")
     quit()
 
+
+# Checks to see if a directory exists, and if not, creates it.
+def assure_dir_exists(path):
+    try: 
+        os.makedirs(path)
+        return path
+    except OSError:
+        if not os.path.isdir(path):
+            raise
+        return path
+
 # Set up directories.
-icon_dir = os.path.join("content", "user_icons")
-picture_dir = os.path.join("content", "pictures")
-photo_dir = os.path.join("content", "photos")
-css_dir = os.path.join("content", "css")
-vid_dir = os.path.join("content", "videos")
-if not os.path.exists(icon_dir):
-    os.makedirs(icon_dir)
-if not os.path.exists(picture_dir):
-    os.makedirs(picture_dir)
-if not os.path.exists(photo_dir):
-    os.makedirs(photo_dir)
-if not os.path.exists(css_dir):
-    os.makedirs(css_dir)
-if not os.path.exists(vid_dir):
-    os.makedirs(vid_dir)
+icons_dir  = assure_dir_exists(os.path.join("content", "user_icons"))
+pics_dir   = assure_dir_exists(os.path.join("content", "pictures"))
+photos_dir = assure_dir_exists(os.path.join("content", "photos"))
+css_dir    = assure_dir_exists(os.path.join("content", "css"))
+video_dir  = assure_dir_exists(os.path.join("content", "videos"))
+posts_dir  = assure_dir_exists(os.path.join("content", "posts"))
 
 # Copy over css files.
 src_files = os.listdir("css")
@@ -67,25 +73,14 @@ def download_fb_image(fb_id):
         print "Oops! Problem parsing JSON, this occurs when trying to download a facebook profile picture."
 
 # Downloads a photo given a url.
-def download_picture(path, id):   
-    file_name = os.path.join("content", "pictures", id + ".jpg")
-    if not os.path.exists(file_name):
-        r  = requests.get(path + "?type=large", stream=True)
+def download_picture(path, id, overwrite=False):   
+    file_name = os.path.join("content", "pictures", id + ".jpg")    
+    if overwrite or not os.path.exists(file_name):
+        r  = requests.get(path, stream=True)
         if r.status_code == 200:
             with open(file_name, 'wb') as f:
                 for chunk in r.iter_content():
                     f.write(chunk)
-                    
-                    
-#   r         = requests.get(path, stream=True)
-#   file_name = os.path.join("content", "videos", id + ".mp4")
-
-#   if not os.path.exists(file_name):
-#       if r.status_code == 200:
-#           with open(file_name, 'wb') as f:
-#               for chunk in r.iter_content():
-#                   f.write(chunk)
-
 
 # Returns all comments for a given post.  If the comments are paginated
 # just make a seperate call and download them all.
@@ -112,7 +107,7 @@ def create_photo_page(picture_id):
        template = loader.load_template('photo.html')
        date     = parser.parse(post["created_time"])
     
-       download_picture(post["source"], picture_id)
+       download_picture(post["source"] + "?type=large", picture_id)
        photo_url = os.path.join("..", "pictures", picture_id + ".jpg")
 
        file_name = os.path.join("content", "photos", post["id"] + ".html")
@@ -129,8 +124,6 @@ def create_photo_page(picture_id):
        print "Oops!  failed to get this object:" + str(picture_id)
    except KeyError:
        print "Oops! Failed to find information for this image:" + str(picture_id)
-
-
 
 # Creates a page for a large picture, including comments on that picture.
 ydl = youtube_dl.YoutubeDL({'outtmpl': '%(id)s%(ext)s'})
@@ -159,15 +152,17 @@ def download_video(post):
        else:
            # Just a video
            video = result
-      
-       print video
+
+       print("Downloading Thumbnail: " + video["thumbnail"])
+       download_picture(video["thumbnail"], video_id, True)
+       
        video_name =  video_id + "." + video["ext"]
        video_url  = os.path.join("content", "videos", video_id + "." + video["ext"])
        if not os.path.exists(video_url):
-         tempfile = video["id"] + video["ext"]
-         print "rename " + tempfile + " to " + video_url
-         result = ydl.extract_info(src, download=True)       
-         os.rename(tempfile, video_url)
+           tempfile = video["id"] + video["ext"]
+           print "rename " + tempfile + " to " + video_url
+           result = ydl.extract_info(src, download=True)       
+           os.rename(tempfile, video_url)
 
        return video_name
    except facebook.GraphAPIError:
@@ -179,14 +174,11 @@ def download_video(post):
 
 # Create an index page.
 def index_page(posts, pg_count, more_pages):
-    index_name = os.path.join("content", "index" + str(pg_count) + ".html")
+    index_name = os.path.join("content", "posts", str(pg_count) + ".html")
     
-    if(pg_count == 0):        
-        index_name = os.path.join("content", "index" + ".html")
-
     with open(index_name, 'wb') as f:
         loader   = FileLoader('html')
-        template = loader.load_template('index.html')
+        template = loader.load_template('post.html')
         f.write(template.render({'posts': posts, 'pg_count' : pg_count + 1, 'more_pages' : more_pages},
                                 loader=loader).encode('utf-8'))
 
@@ -196,7 +188,8 @@ def prepare_post(post):
     # Turn the created time into a real date object.
     post["date"] = parser.parse(post["created_time"])
 
-    post["message"] = cgi.escape(post["message"]).replace('\n','<br />')
+    if(post.has_key("message")): 
+        post["message"] = cgi.escape(post["message"]).replace('\n','<br />')
 
     # Create a phot page if a photo exists.
     if(post["type"] == "photo") :
@@ -208,7 +201,7 @@ def prepare_post(post):
         
     # download any assoicated pictures.
     if(post.has_key("picture")) :
-        download_picture(post["picture"], post["id"])
+        download_picture(post["picture"] + "?type=large", post["id"])
 
     # Download all the images in the comments.
     if post.has_key("comments") :
