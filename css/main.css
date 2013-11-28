@@ -37,15 +37,21 @@ div.comment {
     font-size: .8em;
 }
 
-div.comment img {
+img.comment_profile_pic {
     float: left; 
     max-width: 30px;
     padding: 2px 10px 0 0;
 }
 
+img.comment_link {
+    border: 1px solid blue;
+    margin: 0 20px 0 60px;
+    max-width: 150px;
+}
+
 img.image_link {
     border: 1px solid blue;
-    margin: 0 20px 0 60px;  
+    margin: 0 20px 0 60px;
     float: left;
     max-width: 200px;
  }

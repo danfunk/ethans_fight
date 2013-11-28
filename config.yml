@@ -7,7 +7,7 @@ download_group_videos : false
 download_other_groups_videos : false
 download_other_sites_videos : false
 
-# number of post per page (limit argument to api call)
+# number of post per page
 posts_per_page: 10
 # to limit the number of downloaded pages
-max_pages: 20
+max_pages: 100

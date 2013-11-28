@@ -24,7 +24,12 @@
       #end
       <div class="comments">
         #for @com in @post.all_comments:
-        <div class="comment"><img src="../user_icons/@{com.from.id}.jpg" Title="@com.from.name">@com.message</div>
+           <div class="comment">
+		<img class="comment_profile_pic" src="../user_icons/@{com.from.id}.jpg" Title="@com.from.name"><b>@com.from.name</b>&nbsp: @com.message
+		#if (@com.attachment and @com.attachment.type == "photo") 
+			<br/><a href="../photos/@{com.attachment.target.id}.html"/><img class="comment_link" src="../pictures/@{com.id}.jpg"/></a><br />
+		#end
+	   </div>
         #end
       </div>
     </article>

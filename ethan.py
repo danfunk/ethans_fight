@@ -92,19 +92,25 @@ def download_picture(path, id, overwrite=False):
 # Returns all comments for a given post.  If the comments are paginated
 # just make a seperate call and download them all.
 def process_comments(post):
-    data = []
 
-    comments = post["comments"]["data"]
-    if(post["comments"].has_key("paging") and post["comments"]["paging"].has_key("next")):
-        comments = graph.request(post["id"] + "/" + "comments", {"limit":"500"})["data"]
+    # let's get all comments but with extra data field such as attachment
+    comments = graph.request(post["id"] + "/" + "comments", {'limit':'500', 'fields':'id,attachment,from,message'})["data"]
 
     for com in comments:
         download_fb_image(com["from"]["id"])
         com["message"] = cgi.escape(com["message"]).replace('\n','<br />')
- 
+        if 'attachment' in com and com["attachment"]["type"] == "photo":
+            # this is needed because it is not uncommon for graph api to fail in such case
+            # the template will use a link to the picture instead of the photo page
+            # knowing that the picture is in high res
+            if not create_photo_page(com["attachment"]["target"]["id"]) :
+                com["photo_error"] = True
+            download_picture(com["attachment"]["media"]["image"]["src"], com["id"])
+
     return comments
 
 # Creates a page for a large picture, including comments on that picture.
+# return false if there was a problem
 def create_photo_page(picture_id):
 
    try:
@@ -134,11 +140,13 @@ def create_photo_page(picture_id):
        with open(file_name, 'wb') as f:
            f.write(template.render({'post': post, 'date' : date, 'photo' : photo_url},
                                    loader=loader).encode('utf-8'))
-
-   except facebook.GraphAPIError:
-       print "Oops!  failed to get this object:" + str(picture_id)
-   except KeyError:
-       print "Oops! Failed to find information for this image:" + str(picture_id)
+       return True
+   except facebook.GraphAPIError as e:
+       print "Oops!  failed to get this object:" + str(picture_id) + "\nError: "+e.message
+       return False
+   except KeyError as e:
+       print "Oops! Failed to find information for this image:" + str(picture_id) + "\nError: "+e.message
+       return False
 
 # Creates a page for a video, including comments on that picture.
 ydl = youtube_dl.YoutubeDL({'outtmpl': os.path.join('tmp', '%(id)s%(ext)s')})
@@ -150,6 +158,7 @@ def create_video_page(post):
        template = loader.load_template('video.html')
        date     = parser.parse(post["created_time"])
        video_id = post["id"]
+       # TODO actually use the template to generate a page...
 
        src = ""
        if(post.has_key("object_id")):
@@ -174,8 +183,6 @@ def create_video_page(post):
            video = result
 
        #print("Downloading Thumbnail: " + video["thumbnail"])
-       # maybe the overwrite flag is not needed as the picture
-       # is downloaded before the one from the post is...
        download_picture(video["thumbnail"], video_id, True)
        
        video_name =  video_id + "." + video["ext"]
@@ -189,12 +196,12 @@ def create_video_page(post):
 
        post["video"] = video_name
 
-   except facebook.GraphAPIError:
-       print "Download failed for :" + str(video_id)
-   except youtube_dl.utils.DownloadError:
-       print "Download failed for :" + str(video_id)
-   except KeyError:
-       print "Complex output for data on this video :" + str(video_id)
+   except facebook.GraphAPIError as e :
+       print "Download failed for :" + str(video_id) + "\nError: "+e.message
+   except youtube_dl.utils.DownloadError as e :
+       print "Download failed for :" + str(video_id) + "\nError: "+e.message
+   except KeyError as e :
+       print "Complex output for data on this video :" + str(video_id) + "\nError: "+e.message
 
 # Create an index page.
 def index_page(posts, pg_count, more_pages):
@@ -225,7 +232,7 @@ def prepare_post(post):
         
     # download any associated pictures.
     if(post.has_key("picture")) :
-        download_picture(post["picture"] + "?type=large", post["id"])
+        download_picture(post["picture"], post["id"])
 
     # Download all the images in the comments.
     if post.has_key("comments") :
@@ -234,7 +241,7 @@ def prepare_post(post):
 # RECURSIVE - work through the feed, page by page, creating
 # an index page for each.
 def process_feed(feed, pg_count):
-    print("processing page #" + str(pg_count) )
+    print("processing page #" + str(pg_count) + " (" + str(pg_count+1) + "/" + str(max_pages) + ")")
 
     # create a parsed out time for each post
     # and make sure you have /all/ the comments (not just the first page.)
@@ -242,7 +249,7 @@ def process_feed(feed, pg_count):
         prepare_post(post)   
 
     more_pages=False
-    if(pg_count <= max_pages and "paging" in feed and "next" in feed["paging"]):
+    if(pg_count < max_pages-1 and "paging" in feed and "next" in feed["paging"]):
         more_pages=True
 
     index_page(feed["data"], pg_count, more_pages)
