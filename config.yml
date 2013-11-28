@@ -1,3 +1,13 @@
 group_id : ""
 oauth_access_token : ""
 
+# this does not prevent the thumbnail of the video to be downloaded
+# for now the group and other groups are not differenciated
+download_group_videos : false
+download_other_groups_videos : false
+download_other_sites_videos : false
+
+# number of post per page (limit argument to api call)
+posts_per_page: 10
+# to limit the number of downloaded pages
+max_pages: 20

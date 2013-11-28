@@ -25,6 +25,12 @@ try:
     
     group_id = config["group_id"]
     oauth_access_token = config["oauth_access_token"]
+    download_group_videos = config["download_group_videos"]
+    download_other_sites_videos = config["download_other_sites_videos"]
+    download_other_groups_videos = config["download_other_groups_videos"]
+    max_pages = config["max_pages"]
+    posts_per_page = config["posts_per_page"]
+
 except  (IOError, TypeError, KeyError, yaml.parser.ParserError)as e:
     print "There is a problem with the configuration file. Please see the readme for how to create this file."
     print "\n\nConfiguration error: {0}".format(e.message + "\n")
@@ -59,22 +65,23 @@ for file_name in src_files:
 # Downloads a users profile picture in small and medium sizes.    
 def download_fb_image(fb_id):    
     file_name_sm = os.path.join("content", "user_icons", fb_id + ".jpg")
-    file_name_lg = os.path.join("content", "user_icons", fb_id + "_lg.jpg")
+    # disable since it is not used: reduce calls to graph api
+    #file_name_lg = os.path.join("content", "user_icons", fb_id + "_lg.jpg")
     try:
         if not os.path.exists(file_name_sm):
             user = graph.get_connections(fb_id, "picture")
             with open(file_name_sm, 'wb') as f:
                 f.write(user["data"])
-        if not os.path.exists(file_name_lg):
-            user = graph.request(fb_id + "/" + "picture", {"type" : "normal"})
-            with open(file_name_lg, 'wb') as f:
-                f.write(user["data"])
+        #if not os.path.exists(file_name_lg):
+        #    user = graph.request(fb_id + "/" + "picture", {"type" : "normal"})
+        #    with open(file_name_lg, 'wb') as f:
+        #        f.write(user["data"])
     except simplejson.scanner.JSONDecodeError:
         print "Oops! Problem parsing JSON, this occurs when trying to download a facebook profile picture."
 
 # Downloads a photo given a url.
 def download_picture(path, id, overwrite=False):   
-    file_name = os.path.join("content", "pictures", id + ".jpg")    
+    file_name = os.path.join("content", "pictures", id + ".jpg")
     if overwrite or not os.path.exists(file_name):
         r  = requests.get(path, stream=True)
         if r.status_code == 200:
@@ -102,11 +109,19 @@ def create_photo_page(picture_id):
 
    try:
        post = graph.get_object(picture_id)
-   
+
+       # for a reason I ignore the message from the post of this image
+       # is in the name...
+       if("name" in post):
+           post["name"] = cgi.escape(post["name"]).replace('\n','<br />')
+       if("message" in post):
+           post["message"] = cgi.escape(post["message"]).replace('\n','<br />')
+
        loader   = FileLoader('html')
        template = loader.load_template('photo.html')
        date     = parser.parse(post["created_time"])
-    
+
+       # TODO verify that the extension is correct...
        download_picture(post["source"] + "?type=large", picture_id)
        photo_url = os.path.join("..", "pictures", picture_id + ".jpg")
 
@@ -125,10 +140,10 @@ def create_photo_page(picture_id):
    except KeyError:
        print "Oops! Failed to find information for this image:" + str(picture_id)
 
-# Creates a page for a large picture, including comments on that picture.
-ydl = youtube_dl.YoutubeDL({'outtmpl': '%(id)s%(ext)s'})
+# Creates a page for a video, including comments on that picture.
+ydl = youtube_dl.YoutubeDL({'outtmpl': os.path.join('tmp', '%(id)s%(ext)s')})
 ydl.add_default_info_extractors()
-def download_video(post):
+def create_video_page(post):
 
    try:   
        loader   = FileLoader('html')
@@ -138,11 +153,16 @@ def download_video(post):
 
        src = ""
        if(post.has_key("object_id")):
+           if not (download_other_groups_videos or download_group_videos): return
            src = "https://www.facebook.com/photo.php?v=" + post["object_id"]
        elif(post.has_key("source")):
+           if not download_other_sites_videos: return
            src = post["source"] 
-       else:
+       elif(post.has_key("link")):
+           if not download_other_sites_videos: return
            src = post["link"] 
+       else:
+           return
           
        # Download the video
        result = ydl.extract_info(src, download=False)       
@@ -153,18 +173,22 @@ def download_video(post):
            # Just a video
            video = result
 
-       print("Downloading Thumbnail: " + video["thumbnail"])
+       #print("Downloading Thumbnail: " + video["thumbnail"])
+       # maybe the overwrite flag is not needed as the picture
+       # is downloaded before the one from the post is...
        download_picture(video["thumbnail"], video_id, True)
        
        video_name =  video_id + "." + video["ext"]
-       video_url  = os.path.join("content", "videos", video_id + "." + video["ext"])
+
+       video_url  = os.path.join("content", "videos", video_name)
        if not os.path.exists(video_url):
            tempfile = video["id"] + video["ext"]
-           print "rename " + tempfile + " to " + video_url
-           result = ydl.extract_info(src, download=True)       
+           print "downloading " + video_name
+           result = ydl.extract_info(src, download=True)
            os.rename(tempfile, video_url)
 
-       return video_name
+       post["video"] = video_name
+
    except facebook.GraphAPIError:
        print "Download failed for :" + str(video_id)
    except youtube_dl.utils.DownloadError:
@@ -191,15 +215,15 @@ def prepare_post(post):
     if(post.has_key("message")): 
         post["message"] = cgi.escape(post["message"]).replace('\n','<br />')
 
-    # Create a phot page if a photo exists.
+    # Create a photo page if a photo exists.
     if(post["type"] == "photo") :
         create_photo_page(post["object_id"])
 
     # Create a video page if a video exists.
     if(post["type"] == "video") :
-        post["video"] = download_video(post)       
+        create_video_page(post)
         
-    # download any assoicated pictures.
+    # download any associated pictures.
     if(post.has_key("picture")) :
         download_picture(post["picture"] + "?type=large", post["id"])
 
@@ -218,7 +242,7 @@ def process_feed(feed, pg_count):
         prepare_post(post)   
 
     more_pages=False
-    if(feed.has_key("paging") and feed["paging"].has_key("next")):
+    if(pg_count <= max_pages and "paging" in feed and "next" in feed["paging"]):
         more_pages=True
 
     index_page(feed["data"], pg_count, more_pages)
@@ -233,7 +257,7 @@ def process_feed(feed, pg_count):
 try:
     graph = facebook.GraphAPI(oauth_access_token)
     profile = graph.get_object(group_id)
-    feed = graph.get_connections(group_id, "feed")
+    feed = graph.get_connections(group_id, "feed", limit=posts_per_page)
 
 
     if(len(feed) == 0):
